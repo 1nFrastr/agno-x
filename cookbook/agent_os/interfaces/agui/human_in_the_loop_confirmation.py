@@ -20,7 +20,11 @@ from agno.models.openai import OpenAIChat
 from agno.os import AgentOS
 from agno.os.interfaces.agui import AGUI
 from agno.tools import tool
+from agno.db.sqlite import SqliteDb
 
+import os
+os.environ["OPENAI_API_KEY"] = "hk-8lze3v36h734mq6ckgqw2hvs7ej8tjdc7abume6sbe2ki5rt"
+os.environ["OPENAI_BASE_URL"] = "https://api.openai-hk.com/v1"
 
 @tool(requires_confirmation=True)
 def send_email(to: str, subject: str, body: str) -> str:
@@ -69,6 +73,10 @@ def get_weather(city: str) -> str:
     return f"It is currently 70 degrees and sunny in {city}"
 
 
+# Create a database for storing agent runs
+# This is required for human-in-the-loop confirmation to work properly
+db = SqliteDb(db_file="tmp/agent_runs.db")
+
 # Create an agent with tools that require confirmation
 assistant = Agent(
     name="Assistant",
@@ -82,6 +90,7 @@ assistant = Agent(
     tools=[send_email, delete_file, get_weather],
     add_datetime_to_context=True,
     markdown=True,
+    db=db,  # Required for pausing and resuming runs
 )
 
 # Setup your AgentOS app with AGUI interface
