@@ -11,6 +11,7 @@ from ag_ui.core import (
     CustomEvent,
     EventType,
     RunFinishedEvent,
+    StateSnapshotEvent,
     StepFinishedEvent,
     StepStartedEvent,
     TextMessageContentEvent,
@@ -343,6 +344,22 @@ def _create_completion_events(
 
     # emit frontend tool calls, i.e. external_execution=True
     if isinstance(chunk, RunPausedEvent) and chunk.tools is not None:
+        # Check if any tools require confirmation
+        tools_requiring_confirmation = [t for t in chunk.tools if t.requires_confirmation]
+        
+        if tools_requiring_confirmation:
+            # Generate StateSnapshotEvent for tools requiring confirmation
+            tools_to_confirm = [t.to_dict() for t in tools_requiring_confirmation]
+            state_snapshot = {
+                "status": "paused_for_confirmation",
+                "tools_to_confirm": tools_to_confirm,
+            }
+            snapshot_event = StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state_snapshot)
+            events_to_emit.append(snapshot_event)
+            
+            # Early return - don't emit RunFinishedEvent when paused for confirmation
+            return events_to_emit
+        
         # First, emit an assistant message for external tool calls
         assistant_message_id = str(uuid.uuid4())
         assistant_start_event = TextMessageStartEvent(

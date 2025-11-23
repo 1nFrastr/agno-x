@@ -27,31 +27,62 @@ logger = logging.getLogger(__name__)
 
 
 async def run_agent(agent: Agent, run_input: RunAgentInput) -> AsyncIterator[BaseEvent]:
-    """Run the contextual Agent, mapping AG-UI input messages to Agno format, and streaming the response in AG-UI format."""
+    """
+    Run the contextual Agent, mapping AG-UI input messages to Agno format, and streaming the response in AG-UI format.
+    
+    This function handles both starting a new run and continuing a paused run.
+    """
     run_id = run_input.run_id or str(uuid.uuid4())
 
     try:
-        # Preparing the input for the Agent and emitting the run started event
-        messages = convert_agui_messages_to_agno_messages(run_input.messages or [])
-        yield RunStartedEvent(type=EventType.RUN_STARTED, thread_id=run_input.thread_id, run_id=run_id)
+        # Handle continuation from a paused state, otherwise start a new run
+        if (
+            hasattr(run_input, "state")
+            and run_input.state
+            and isinstance(run_input.state, dict)
+            and run_input.state.get("status") == "paused_for_confirmation"
+        ):
+            # Continue from a paused state with updated tools
+            from agno.models.response import ToolExecution
+            
+            updated_tools = [ToolExecution.from_dict(t) for t in run_input.state.get("tools_to_confirm", [])]
+            
+            # Look for user_id in run_input.forwarded_props
+            user_id = None
+            if run_input.forwarded_props and isinstance(run_input.forwarded_props, dict):
+                user_id = run_input.forwarded_props.get("user_id")
+            
+            response_stream = agent.acontinue_run(
+                run_id=run_id,
+                updated_tools=updated_tools,
+                session_id=run_input.thread_id,
+                stream=True,
+                stream_events=True,
+                user_id=user_id,
+            )
+        else:
+            # Preparing the input for the Agent and emitting the run started event
+            messages = convert_agui_messages_to_agno_messages(run_input.messages or [])
+            yield RunStartedEvent(type=EventType.RUN_STARTED, thread_id=run_input.thread_id, run_id=run_id)
 
-        # Look for user_id in run_input.forwarded_props
-        user_id = None
-        if run_input.forwarded_props and isinstance(run_input.forwarded_props, dict):
-            user_id = run_input.forwarded_props.get("user_id")
+            # Look for user_id in run_input.forwarded_props
+            user_id = None
+            if run_input.forwarded_props and isinstance(run_input.forwarded_props, dict):
+                user_id = run_input.forwarded_props.get("user_id")
 
-        # Validating the session state is of the expected type (dict)
-        session_state = validate_agui_state(run_input.state, run_input.thread_id)
+            # Validating the session state is of the expected type (dict)
+            session_state = validate_agui_state(run_input.state, run_input.thread_id)
 
-        # Request streaming response from agent
-        response_stream = agent.arun(
-            input=messages,
-            session_id=run_input.thread_id,
-            stream=True,
-            stream_events=True,
-            user_id=user_id,
-            session_state=session_state,
-        )
+            # Request streaming response from agent
+            response_stream = agent.arun(
+                input=messages,
+                run_id=run_id,  # Pass the run_id to ensure consistency
+                session_id=run_input.thread_id,
+                stream=True,
+                stream_events=True,
+                user_id=user_id,
+                session_state=session_state,
+            )
 
         # Stream the response content in AG-UI format
         async for event in async_stream_agno_response_as_agui_events(

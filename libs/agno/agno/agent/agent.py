@@ -2856,9 +2856,22 @@ class Agent:
                 raise ValueError("Updated tools are required to continue a run from a run_id.")
 
             runs = agent_session.runs
-            run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
-            if run_response is None:
-                raise RuntimeError(f"No runs found for run ID {run_id}")
+            if runs is None or len(runs) == 0:
+                # Try to re-fetch session from database
+                reloaded_session = self.get_session(session_id=session_id)
+                if reloaded_session and reloaded_session.runs:
+                    agent_session = reloaded_session
+                    runs = agent_session.runs
+                
+                if runs is None or len(runs) == 0:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
+                run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
+                if run_response is None:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
+            else:
+                run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
+                if run_response is None:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
             run_response.tools = updated_tools
             input = run_response.messages or []
         else:
@@ -3530,9 +3543,23 @@ class Agent:
                 raise ValueError("Updated tools are required to continue a run from a run_id.")
 
             runs = agent_session.runs
-            run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
-            if run_response is None:
-                raise RuntimeError(f"No runs found for run ID {run_id}")
+            if runs is None or len(runs) == 0:
+                # Try to re-fetch session from database (synchronously for SqliteDb)
+                if not self._has_async_db():
+                    reloaded_session = self.get_session(session_id=session_id)
+                    if reloaded_session and reloaded_session.runs:
+                        agent_session = reloaded_session
+                        runs = agent_session.runs
+                
+                if runs is None or len(runs) == 0:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
+                run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
+                if run_response is None:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
+            else:
+                run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
+                if run_response is None:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
             run_response.tools = updated_tools
             input = run_response.messages or []
         else:
@@ -3735,9 +3762,23 @@ class Agent:
                 raise ValueError("Updated tools are required to continue a run from a run_id.")
 
             runs = agent_session.runs
-            run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
-            if run_response is None:
-                raise RuntimeError(f"No runs found for run ID {run_id}")
+            if runs is None or len(runs) == 0:
+                # Try to re-fetch session from database (synchronously for SqliteDb)
+                if not self._has_async_db():
+                    reloaded_session = self.get_session(session_id=session_id)
+                    if reloaded_session and reloaded_session.runs:
+                        agent_session = reloaded_session
+                        runs = agent_session.runs
+                
+                if runs is None or len(runs) == 0:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
+                run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
+                if run_response is None:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
+            else:
+                run_response = next((r for r in runs if r.run_id == run_id), None)  # type: ignore
+                if run_response is None:
+                    raise RuntimeError(f"No runs found for run ID {run_id}")
             run_response.tools = updated_tools
             input = run_response.messages or []
         else:
